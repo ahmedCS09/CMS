@@ -1,10 +1,6 @@
 import mongoose from "mongoose";
 
 const clinicSchema = new mongoose.Schema({
-    id: {
-        type: String,
-        required: true,
-    },
     name: {
         type: String,
         required: true,

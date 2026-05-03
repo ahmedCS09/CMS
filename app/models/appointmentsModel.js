@@ -2,14 +2,22 @@ import mongoose from "mongoose";
 
 const appointmentSchema = new mongoose.Schema({
     id: {
-        type: String,
-        required: true,
+        type: String
     },
     patientId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: [true, "Patient reference is mandatory"],
+    },
+    patientName: {
         type: String,
         required: true,
     },
     doctorId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    doctorName: {
         type: String,
         required: true,
     },
@@ -23,8 +31,8 @@ const appointmentSchema = new mongoose.Schema({
     },
     appointmentStatus: {
         type: String,
-        required: true,
-        enum: ['status', 'pending']
+        enum: ['pending', 'rejected', 'checked-in', 'completed', 'cancelled'],
+        default: 'pending'
     }
 }, { timestamps: true });
 

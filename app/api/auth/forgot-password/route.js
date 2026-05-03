@@ -29,7 +29,8 @@ export async function POST(req) {
 
   await user.save();
 
-  const resetUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/auth/reset-password/${resetToken}`;
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.FRONTEND_URL || "http://localhost:3000";
+  const resetUrl = `${baseUrl}/auth/reset-password/${resetToken}`;
 
   await sendEmail({
     to: user.email,

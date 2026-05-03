@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import User from "@/models/userModel.js";
 import { dbConnect } from "@/lib/mongodb.js";
 

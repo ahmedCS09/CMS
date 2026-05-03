@@ -14,11 +14,23 @@ const userSchema = new mongoose.Schema({
         type: String, 
         required: true 
     },
+    age: {
+        type: Number
+    },
+    gender: {
+        type: String,
+        enum: ['Male', 'Female', 'Other']
+    },
     role: { 
         type: String, 
         required: true, 
-        enum: ['admin', 'doctor', 'receptionist', 'patient'], 
-        default: 'patient' 
+        enum: ['admin', 'doctor', 'receptionist', 'patient', 'nurse']
+    },
+    docSpecialization: {
+        type: String
+    },
+    photoURL: {
+        type: String
     },
     resetPasswordToken: { 
         type: String 

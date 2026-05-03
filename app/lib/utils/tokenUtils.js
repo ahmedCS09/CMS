@@ -1,24 +1,33 @@
 import jwt from 'jsonwebtoken';
 
-// user can be an object with id and fullName
+/** Same value must be used for sign and verify when JWT_SECRET is unset (local dev only). */
+const DEV_FALLBACK_JWT_SECRET =
+  'dev-fallback-jwt-secret-super-secure-change-in-production';
+
+function getJwtSecret() {
+  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+  console.warn(
+    '⚠️ JWT_SECRET is not set; using dev fallback. Set JWT_SECRET in .env.local for production.'
+  );
+  return DEV_FALLBACK_JWT_SECRET;
+}
+
 export async function generateToken(user) {
-    const payload = {
-        id: user._id || user.id || user,
-        fullName: user.fullName,
-        role: user.role
-    };
-    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
-    console.log(token);
-    return token;
+  const payload = {
+    id: user._id || user.id || user,
+    fullName: user.fullName,
+    role: user.role,
+  };
+  const secret = getJwtSecret();
+  return jwt.sign(payload, secret, { expiresIn: '1d' });
 }
 
 export async function verifyToken(token) {
-    try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        console.log(decoded);
-        return decoded;
-    } catch (error) {
-        console.log('Token verification failed:', error);
-        return null;
-    }
+  try {
+    const secret = getJwtSecret();
+    return jwt.verify(token, secret);
+  } catch (error) {
+    console.log('Token verification failed:', error);
+    return null;
+  }
 }

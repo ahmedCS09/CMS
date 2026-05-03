@@ -12,14 +12,15 @@ import useAuthStore from "@/store/useAuthStore";
 export default function Profile() {
   const searchParams = useSearchParams();
   const userId = searchParams.get("id");
-  const { user: loggedInUser } = useAuthStore();
+  const loggedInUser = useAuthStore(state => state.user);
+
   const [openModal, setOpenModal] = useState(false);
   const containerRef = useRef(null);
 
   const getUser = async () => {
-    const url = userId ? `/api/auth/getUserById?id=${userId}` : "/api/auth/getUser";
+    const url = userId ? `/api/auth/getUser?id=${userId}` : "/api/auth/getUser";
     const response = await axios.get(url);
-    return response?.data?.user;
+    return response.data.user;
   };
 
   const { data, isLoading, error } = useQuery({
@@ -68,13 +69,13 @@ export default function Profile() {
         ease: "power2.out"
       });
 
-      // Button Reveal
+      // Button Reveal - forced visible fallback
       gsap.from(".update-btn", {
-        y: 30,
-        opacity: 0,
-        delay: 0.6,
-        duration: 0.8,
-        ease: "power3.out"
+        y: 10,
+        opacity: 0.7,
+        delay: 0.4,
+        duration: 0.6,
+        ease: "power2.out"
       });
 
     }, containerRef);
@@ -84,11 +85,11 @@ export default function Profile() {
   }, [data]);
 
   return (
-    <div className="w-full pt-32 pb-24 flex justify-center items-start px-4 bg-slate-50 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-fixed">
+    <div className="w-full pt-32 pb-24 flex justify-center items-start px-4 bg-slate-950 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-fixed">
 
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-32 space-y-6">
-          <div className="w-20 h-20 border-4 border-slate-100 border-t-indigo-600 rounded-full animate-spin"></div>
+          <div className="w-20 h-20 border-4 border-slate-800 border-t-indigo-600 rounded-full animate-spin"></div>
           <p className="text-slate-500 font-bold uppercase text-xs">
             Accessing your profile data...
           </p>
@@ -99,7 +100,7 @@ export default function Profile() {
           <div className="w-20 h-20 bg-red-500 text-white rounded-3xl flex items-center justify-center mx-auto mb-6">
             <Shield className="w-10 h-10" />
           </div>
-          <h3 className="text-2xl font-black text-slate-900 mb-2">
+          <h3 className="text-2xl font-black text-white mb-2">
             Access Error
           </h3>
           <p className="text-slate-500 font-medium mb-8">
@@ -116,7 +117,7 @@ export default function Profile() {
       ) : (
         <div
           ref={containerRef}
-          className="profile-card w-full max-w-lg bg-white/70 backdrop-blur-2xl rounded-[3rem] border border-white shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)] overflow-hidden"
+          className="profile-card w-full max-w-lg bg-slate-900/50 backdrop-blur-2xl rounded-[3rem] border border-white/10 shadow-[0_32px_128px_-16px_rgba(0,0,0,0.5)] overflow-hidden"
         >
 
           {/* Header Banner */}
@@ -126,15 +127,15 @@ export default function Profile() {
 
             {/* Profile Image */}
             <div className="relative -mt-20 mb-8 flex justify-center">
-              <div className="profile-image w-40 h-40 rounded-[2.5rem] border-8 border-white bg-slate-100 shadow-2xl overflow-hidden">
-                {data?.image ? (
-                  <img
-                    src={data?.image}
-                    alt="Profile"
-                    className="w-full h-full object-cover"
-                  />
+              <div className="profile-image w-40 h-40 rounded-[2.5rem] border-8 border-slate-950 bg-slate-900 shadow-2xl overflow-hidden ring-1 ring-white/10">
+                {data?.photoURL ? (
+                <img
+                  src={data?.photoURL}
+                  alt="Profile"
+                  className="w-full h-full object-cover"
+                />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-indigo-50 text-indigo-300">
+                  <div className="w-full h-full flex items-center justify-center bg-indigo-500/10 text-indigo-300">
                     <User className="w-20 h-20" />
                   </div>
                 )}
@@ -143,10 +144,10 @@ export default function Profile() {
 
             {/* Name + Role */}
             <div className="text-center mb-10 space-y-2">
-              <h1 className="text-4xl font-black text-slate-900 uppercase">
+              <h1 className="text-4xl font-black text-white uppercase tracking-tighter">
                 {data?.fullName || "MediConnect User"}
               </h1>
-              <p className="text-sm font-black text-indigo-600 uppercase tracking-widest">
+              <p className="text-sm font-black text-indigo-400 uppercase tracking-[0.25em]">
                 {data?.role || "Verified Member"}
               </p>
             </div>
@@ -168,49 +169,71 @@ export default function Profile() {
               <DetailCard
                 icon={<Calendar className="w-5 h-5" />}
                 label="Member Since"
-                value="February 2026"
+                value={data?.createdAt ? new Date(data.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long' }) : 'Recent'}
                 color="blue"
               />
             </div>
 
-            {/* Update Button - Only for current user or self-view */}
-            {(!userId || userId === loggedInUser?._id) && (
+{(!userId || userId === loggedInUser?._id) && (
               <button
-                onClick={() => setOpenModal(true)}
-                className="update-btn w-full flex items-center justify-center gap-3 rounded-2xl bg-slate-900 py-4 text-white font-black text-lg shadow-2xl hover:bg-indigo-600 transition-all"
+                onClick={() => {
+                  setOpenModal(true);
+                }}
+                className="update-btn w-full flex items-center justify-center gap-3 rounded-2xl bg-slate-900 py-4 text-white font-black text-lg shadow-2xl hover:bg-indigo-600 transition-all z-10 relative !opacity-100 !visible"
+                style={{
+                  opacity: 1,
+                  visibility: 'visible',
+                  display: 'flex'
+                }}
               >
                 <Edit className="w-5 h-5" />
                 <span>Update Profile</span>
               </button>
+            )}
+            {loggedInUser?.role === 'admin' && userId && userId !== loggedInUser?._id && (
+              <a
+                href={`/auth/profile?id=${userId}`}
+                className="w-full flex items-center justify-center gap-3 rounded-2xl bg-indigo-600 py-4 text-white font-black text-lg shadow-2xl hover:bg-indigo-700 transition-all z-10 relative mt-4"
+              >
+                <Edit className="w-5 h-5" />
+                <span>Edit as Admin</span>
+              </a>
             )}
 
           </div>
         </div>
       )}
 
-      <UpdateUserModal open={openModal} close={() => setOpenModal(false)} />
+      <UpdateUserModal 
+        open={openModal} 
+        close={() => {
+          setOpenModal(false);
+          if (!userId) {
+            useAuthStore.getState().refetchUser();
+          }
+        }} 
+      />
     </div>
   );
 }
-
-// Detail Card Component
+ 
 const DetailCard = ({ icon, label, value, color }) => {
   const colorMap = {
-    indigo: "bg-indigo-50 text-indigo-600",
+    indigo: "bg-indigo-500/10 text-indigo-600",
     purple: "bg-purple-50 text-purple-600",
     blue: "bg-blue-50 text-blue-600",
   };
 
   return (
-    <div className="detail-card flex items-center p-4 bg-white/50 border border-slate-100 rounded-3xl transition-all duration-300 hover:border-indigo-100 hover:bg-white">
+    <div className="detail-card flex items-center p-4 bg-slate-800/50 border border-slate-700 rounded-3xl transition-all duration-300 hover:border-indigo-500/50 hover:bg-slate-800">
       <div className={`w-12 h-12 rounded-2xl ${colorMap[color]} flex items-center justify-center shadow-inner`}>
         {icon}
       </div>
       <div className="ml-5 flex-1 min-w-0">
-        <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-1">
+        <p className="text-[10px] text-indigo-400 uppercase font-black tracking-[0.2em] mb-1">
           {label}
         </p>
-        <p className="text-slate-800 font-bold truncate">
+        <p className="text-slate-200 font-bold truncate">
           {value}
         </p>
       </div>

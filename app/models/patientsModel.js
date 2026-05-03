@@ -1,14 +1,6 @@
 import mongoose from 'mongoose';
 
 const patientSchema = new mongoose.Schema({
-    id: {
-        type: String,
-        required: true,
-    },
-    clinicID: {
-        type: String,
-        required: true,
-    },
     nationalID: {
         type: String,
         required: true,

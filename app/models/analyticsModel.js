@@ -1,14 +1,6 @@
 import mongoose from "mongoose";
 
 const analyticsSchema = new mongoose.Schema({
-    id: {
-        type: String,
-        required: true,
-    },
-    clinicID: {
-        type: String,
-        required: true,
-    },
     metricName: {
         type: String,
         required: true,

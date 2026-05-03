@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import Joi from "joi";
 import User from "@/models/userModel";
 import { generateToken, verifyToken } from "@/lib/utils/tokenUtils";
 import { dbConnect } from "@/lib/mongodb";
 import { v2 as cloudinary } from 'cloudinary';
 
-// Configure Cloudinary
 // Configure Cloudinary
 cloudinary.config({
     cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
@@ -18,59 +17,116 @@ const registerSchema = Joi.object({
     fullName: Joi.string().min(3).max(30).required(),
     email: Joi.string().email().required(),
     password: Joi.string().min(6).required(),
+    photoURL: Joi.string().uri().allow('').optional(),
     adminSecret: Joi.string().allow('').optional()
 });
 const loginSchema = Joi.object({
     email: Joi.string().email().required(),
-    password: Joi.string().min(6).required()
+    password: Joi.string().min(6).required(),
+    role: Joi.string().valid('admin', 'doctor', 'receptionist', 'patient', 'nurse').required()
 });
+
+/** Trim + lowercase for stored emails (consistent uniqueness). */
+function normalizeEmail(email) {
+    if (typeof email !== 'string') return '';
+    return email.trim().toLowerCase();
+}
+
+/** Escape for safe case-insensitive email match. */
+function escapeRegex(s) {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Find user by email — tries exact lowercase, then DB-side case-insensitive match (legacy docs),
+ * then anchored regex. Ensures `password` is always selected for login.
+ */
+async function findUserByEmail(email) {
+    const trimmed = typeof email === 'string' ? email.trim() : '';
+    if (!trimmed) return null;
+    const lower = trimmed.toLowerCase();
+
+    const loginFields = { password: 1, email: 1, role: 1, fullName: 1 };
+
+    let user = await User.findOne({ email: lower }).select(loginFields);
+    if (user) return user;
+
+    user = await User.findOne({
+        $expr: { $eq: [{ $toLower: "$email" }, lower] },
+    }).select(loginFields);
+    if (user) return user;
+
+    const safe = escapeRegex(trimmed);
+    return User.findOne({ email: { $regex: new RegExp(`^${safe}$`, 'i') } }).select(loginFields);
+}
 
 //register user controller
 export async function registerUser(req) {
 
     try {
         await dbConnect();
-        const { fullName, email, password, adminSecret } = await req.json();
-        const { error } = registerSchema.validate({ fullName, email, password });
+        const { fullName, email, password, adminSecret, photoURL } = await req.json();
+        const { error } = registerSchema.validate({ fullName, email, password, photoURL });
         if (error) {
             return NextResponse.json({ message: error.details[0].message }, { status: 400 });
         }
-        // Check if user already exists 
-        let findUser = await User.findOne({ email });
+        const emailNorm = normalizeEmail(email);
+        let findUser = await findUserByEmail(email);
         if (findUser) {
             return NextResponse.json({ message: "User already exists" }, { status: 400 });
         }
         // Hash password
-        const salt_rounds = Number(process.env.SALT_ROUNDS);
+        const salt_rounds = Number(process.env.SALT_ROUNDS) || 10;
         const hashedPassword = await bcrypt.hash(password, salt_rounds);
+        console.log("registerUser: Password hashed. Prefix:", hashedPassword.substring(0, 4), "Length:", hashedPassword.length);
 
-        //assigning role of admin or patient
+        // Assign role
         let assignedRole = 'patient';
+        console.log("Registration Debug - Incoming Secret:", adminSecret);
+        console.log("Registration Debug - Server Secret:", process.env.ADMIN_SECRET);
+
         if (adminSecret && adminSecret === process.env.ADMIN_SECRET) {
+            console.log("Registration Debug - Secret Match! Assigning Admin Role.");
             assignedRole = 'admin';
+        } else if (adminSecret) {
+            console.log("Registration Debug - Secret Mismatch.");
         }
-        // Create new user
+
         const newUser = new User({
             fullName,
-            email,
+            email: emailNorm,
             password: hashedPassword,
-            role: assignedRole
+            role: assignedRole,
+            photoURL
         });
-        // Save user with hashed password
+
+        console.log("registerUser: Saving user with hashed password...");
         await newUser.save();
+        console.log("registerUser: User saved succesfully, generating token...");
+
         let token = await generateToken(newUser);
-        return NextResponse.json({
+
+        const response = NextResponse.json({
             message: "User registered successfully",
             user: {
                 fullName: newUser.fullName,
                 email: newUser.email,
                 _id: newUser._id,
+                role: newUser.role,
+                photoURL: newUser.photoURL,
                 token: token
             }
-        }, {
-            headers: { 'Set-Cookie': `token=${token}; HttpOnly; Path=/; Max-Age=${7 * 24 * 60 * 60}` },
-            status: 201
+        }, { status: 201 });
+
+        // Standard way to set cookies in Next.js 13+ App Router
+        response.cookies.set('token', token, {
+            httpOnly: true,
+            path: '/',
+            maxAge: 7 * 24 * 60 * 60,
+            sameSite: 'lax',
         });
+
+        return response;
     }
     catch (error) {
         console.error("Registration Error details:", {
@@ -92,40 +148,105 @@ export async function loginUser(req) {
         console.log("loginUser: Starting dbConnect...");
         await dbConnect();
         console.log("loginUser: dbConnect finished.");
-        const { email, password } = await req.json();
-        const { error } = loginSchema.validate({ email, password });
+        const { email, password, role } = await req.json();
+        const { error } = loginSchema.validate({ email, password, role });
         if (error) {
             return NextResponse.json({ message: error.details[0].message }, { status: 400 });
         }
-        // Find user by email
-        console.log("loginUser: Finding user by email:", email);
-        let findUser = await User.findOne({ email });
+        console.log("loginUser: Finding user by email (case-insensitive):", email?.trim());
+        let findUser = await findUserByEmail(email);
         console.log("loginUser: Find result:", findUser ? "Found" : "Not Found");
         if (!findUser) {
+            if (process.env.NODE_ENV === "development") {
+                console.warn("[auth] login: no user matched email (wrong DB or no account). Tried:", normalizeEmail(email));
+            }
             return NextResponse.json({ message: "Invalid email or password" }, { status: 400 });
         }
-        // Compare password
-        const isMatch = await bcrypt.compare(password, findUser.password);
+
+        // Verify role
+        if (findUser.role !== role) {
+            return NextResponse.json({ message: `Access denied. You are not registered as a ${role}` }, { status: 403 });
+        }
+
+        let storedHash = findUser.password;
+        let isMatch = false;
+
+        if (typeof storedHash !== 'string' || !storedHash.startsWith('$2')) {
+            console.warn("loginUser: password field missing or invalid for user:", findUser.email, {
+                type: typeof storedHash,
+                value: storedHash ? String(storedHash).slice(0, 20) : '[empty]'
+            });
+
+            if (findUser._id) {
+                const reloaded = await User.findById(findUser._id).select({ password: 1 });
+                storedHash = reloaded?.password;
+                console.log("loginUser: reloaded password field for user:", findUser.email, "type:", typeof storedHash);
+            }
+        }
+
+        if (typeof storedHash !== 'string') {
+            console.error("loginUser: password field is missing or invalid for user:", findUser.email);
+            return NextResponse.json({ message: "Invalid email or password" }, { status: 400 });
+        }
+
+        if (storedHash.startsWith('$2')) {
+            console.log("loginUser: Found user, comparing bcrypt password hash...");
+            isMatch = await bcrypt.compare(password, storedHash);
+        } else {
+            console.warn("loginUser: Legacy plaintext password found for user:", findUser.email);
+            if (password === storedHash) {
+                isMatch = true;
+                try {
+                    const salt_rounds = Number(process.env.SALT_ROUNDS) || 10;
+                    const newHash = await bcrypt.hash(password, salt_rounds);
+                    await User.findByIdAndUpdate(findUser._id, { password: newHash });
+                    console.log("loginUser: Migrated legacy password to bcrypt for user:", findUser.email);
+                } catch (hashError) {
+                    console.error("loginUser: failed to migrate legacy password hash for user:", findUser.email, hashError);
+                }
+            }
+        }
+
         if (!isMatch) {
+            console.warn("[auth] login: password mismatch for", findUser.email);
             return NextResponse.json({ message: "Invalid email or password" }, { status: 400 });
         }
+
+        console.log("loginUser: Password match! Generating token for:", findUser.email);
         let token = await generateToken(findUser);
-        return NextResponse.json({
+
+        const response = NextResponse.json({
             message: "User logged in successfully",
             user: {
                 fullName: findUser.fullName,
                 email: findUser.email,
                 _id: findUser._id,
+                role: findUser.role,
                 token: token
             }
-        }, {
-            headers: { 'Set-Cookie': `token=${token}; HttpOnly; Path=/; Max-Age=${7 * 24 * 60 * 60}` },
-            status: 200
+        }, { status: 200 });
+
+        // Set secure cookie
+        response.cookies.set('token', token, {
+            httpOnly: true,
+            path: '/',
+            maxAge: 7 * 24 * 60 * 60,
+            sameSite: 'lax',
         });
+
+        return response;
     }
     catch (error) {
-        console.log(error)
-        return NextResponse.json({ message: "Server error" }, { status: 500 });
+        console.error("Login Error details:", {
+            message: error.message,
+            stack: error.stack,
+            name: error.name
+        });
+        return NextResponse.json({
+            message: "Server error",
+            error: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        }, { status: 500 });
     }
 }
 
@@ -240,7 +361,7 @@ export async function updateUser(req) {
         }
 
         const body = await req.json();
-        const { targetUserId, fullName, email, image, role } = body;
+        const { targetUserId, fullName, email, photoURL, role } = body;
 
         // Determine which user to update
         let userIdToUpdate = decoded.id;
@@ -262,8 +383,8 @@ export async function updateUser(req) {
         // Update user details
         user.fullName = fullName || user.fullName;
         user.email = email || user.email;
-        if (image) {
-            user.image = image;
+        if (photoURL) {
+            user.photoURL = photoURL;
         }
 
         // Only admins can update user role
@@ -303,5 +424,167 @@ export async function uploadImage(request) {
     } catch (error) {
         console.log(error);
         return NextResponse.json({ message: "Server error" }, { status: 500 });
+    }
+}
+
+// Admin register user controller (can register doctors and receptionists)
+export async function adminRegisterUser(req) {
+    try {
+        await dbConnect();
+
+        // Verify requester is admin
+        const token = req.cookies.get('token')?.value;
+        if (!token) {
+            return NextResponse.json({ message: "Not authenticated" }, { status: 401 });
+        }
+        const decoded = await verifyToken(token);
+        if (!decoded || decoded.role !== 'admin') {
+            return NextResponse.json({ message: "Access denied. Admin role required." }, { status: 403 });
+        }
+
+        const { fullName, email, password, role, docSpecialization } = await req.json();
+        console.log("Admin registering user:", { fullName, role, docSpecialization });
+
+        // Basic validation
+        if (!fullName || !email || !password || !role) {
+            return NextResponse.json({ message: "All fields are required" }, { status: 400 });
+        }
+
+        // Admin can register doctors and receptionists
+        const allowedRoles = ['doctor', 'receptionist', 'nurse'];
+        if (!allowedRoles.includes(role)) {
+            return NextResponse.json({ message: "Invalid role for admin registration" }, { status: 400 });
+        }
+
+        let findUser = await findUserByEmail(email);
+        if (findUser) {
+            return NextResponse.json({ message: "User already exists" }, { status: 400 });
+        }
+
+        const salt_rounds = Number(process.env.SALT_ROUNDS) || 10;
+        const hashedPassword = await bcrypt.hash(password, salt_rounds);
+        const emailNorm = normalizeEmail(email);
+
+        const newUser = new User({
+            fullName,
+            email: emailNorm,
+            password: hashedPassword,
+            role,
+            docSpecialization
+        });
+
+        await newUser.save();
+
+        return NextResponse.json({
+            message: `${role.charAt(0).toUpperCase() + role.slice(1)} registered successfully`,
+            user: {
+                fullName: newUser.fullName,
+                email: newUser.email,
+                role: newUser.role,
+                docSpecialization: newUser.docSpecialization
+            }
+        }, { status: 201 });
+    }
+    catch (error) {
+        console.error("Admin Registration Error:", error);
+        return NextResponse.json({ message: "Server error during registration" }, { status: 500 });
+    }
+}
+
+// Receptionist register patient controller
+export async function receptionistRegisterPatient(req) {
+    try {
+        await dbConnect();
+
+        // Verify requester is receptionist
+        const token = req.cookies.get('token')?.value;
+        if (!token) {
+            return NextResponse.json({ message: "Not authenticated" }, { status: 401 });
+        }
+        const decoded = await verifyToken(token);
+        if (!decoded || decoded.role !== 'receptionist') {
+            return NextResponse.json({ message: "Access denied. Receptionist role required." }, { status: 403 });
+        }
+
+        const { fullName, email, password, dob, gender } = await req.json();
+
+        // Basic validation
+        if (!fullName || !email || !password) {
+            return NextResponse.json({ message: "All fields are required" }, { status: 400 });
+        }
+
+        let findUser = await findUserByEmail(email);
+        if (findUser) {
+            return NextResponse.json({ message: "User already exists" }, { status: 400 });
+        }
+
+        const salt_rounds = Number(process.env.SALT_ROUNDS) || 10;
+        const hashedPassword = await bcrypt.hash(password, salt_rounds);
+        const emailNorm = normalizeEmail(email);
+
+        // Function to calculate age from Date of Birth
+        const calculateAge = (dob) => {
+            if (!dob) return null;
+            const diff = Date.now() - dob.getTime();
+            const ageDate = new Date(diff);
+            return Math.abs(ageDate.getUTCFullYear() - 1970);
+        };
+
+        const newUser = new User({
+            fullName,
+            email: emailNorm,
+            password: hashedPassword,
+            role: 'patient',
+            gender: gender,
+            age: calculateAge(new Date(dob))
+        });
+
+        await newUser.save();
+
+        try {
+            const { socket } = await import("@/lib/socket");
+            if (!socket.connected) socket.connect();
+            socket.emit('newPatientRegistered', newUser);
+        } catch (socketErr) {
+            console.warn("Socket notify skipped:", socketErr?.message);
+        }
+
+        return NextResponse.json({
+            message: `Patient registered successfully`,
+            user: {
+                fullName: newUser.fullName,
+                email: newUser.email,
+                role: newUser.role,
+                gender: newUser.gender,
+                age: newUser.age
+            }
+        }, { status: 201 });
+    }
+    catch (error) {
+        console.error("Receptionist Registration Error:", error);
+        return NextResponse.json({ message: "Server error during registration" }, { status: 500 });
+    }
+}
+
+export const deleteUser = async (req) => {
+    try {
+        await dbConnect();
+        const token = req.cookies.get("token")?.value;
+        if (!token) {
+            return NextResponse.json({ message: "Not authenticated" }, { status: 401 });
+        }
+        const decoded = await verifyToken(token);
+        if (!decoded) {
+            return NextResponse.json({ message: "Invalid token" }, { status: 401 });
+        }
+        const user = await User.findByIdAndDelete(decoded._id);
+        if (!user) {
+            return NextResponse.json({ message: "User not found" }, { status: 404 });
+        }
+        return NextResponse.json({ message: "User deleted successfully" }, { status: 200 });
+    }
+    catch (error) {
+        console.log(error);
+        return NextResponse.json({ message: "error in deleting user" }, { status: 500 });
     }
 }

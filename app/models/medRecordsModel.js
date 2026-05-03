@@ -1,19 +1,21 @@
 import mongoose from "mongoose";
 
 const medRecordSchema = new mongoose.Schema({
-    id: {
-        type: String,
-        required: true,
-    },
     appointmentId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Appointment',
+        required: true,
+    },
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true,
+    },
+    patientName: {
         type: String,
         required: true,
     },
-    patientId: {
-        type: String,
-        required: true,
-    },
-    doctorId: {
+    doctorName: {
         type: String,
         required: true,
     },

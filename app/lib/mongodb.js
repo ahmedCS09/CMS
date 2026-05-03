@@ -20,7 +20,7 @@ export async function dbConnect() {
     if (!cached.promise) {
         const opts = {
             bufferCommands: false,
-            serverSelectionTimeoutMS: 5000,
+            serverSelectionTimeoutMS: 15000,
         };
 
         console.log("Connecting to MongoDB with URI:", MONGODB_URL.substring(0, 20) + "...");
