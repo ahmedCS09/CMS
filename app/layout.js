@@ -19,6 +19,9 @@ import Providers from "./components/Providers";
 export const metadata = {
   title: "MediConnect | Modern Clinic Management",
   description: "Advanced healthcare administration platform for hospitals, clinics, and patient care.",
+  icons: {
+    icon: '/mediconnect_logo.png',
+  },
 };
 
 export default function RootLayout({

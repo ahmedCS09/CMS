@@ -85,7 +85,7 @@ export default function UpdateUserModal({ open, close }) {
     if (!open) return null;
 
     return (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xl flex items-center justify-center z-[110] p-6 animate-in fade-in duration-300">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xl flex items-center justify-center z-[2000] p-6 animate-in fade-in duration-300">
             <div className="bg-slate-900/90 backdrop-blur-2xl p-8 md:p-12 rounded-[3.5rem] shadow-[0_32px_128px_-16px_rgba(0,0,0,0.3)] w-full max-w-lg border border-white animate-in zoom-in-95 duration-500 max-h-[95vh] overflow-y-auto custom-scrollbar relative">
 
                 {/* Decorative Background */}
