@@ -1,4 +1,4 @@
-import Profile from "@/components/Profile";
+import Profile from "@/components/profile";
 import { Suspense } from "react";
 
 export const metadata = {
