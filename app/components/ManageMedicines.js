@@ -4,7 +4,7 @@ import * as yup from "yup";
 import { yupResolver } from "@hookform/resolvers/yup";
 import axios from "axios";
 import { useState, useEffect } from "react";
-import { Loader2, PlusCircle, Package, DollarSign, Image as ImageIcon, Tag, FileText, CheckCircle2 } from "lucide-react";
+import { Loader2, PlusCircle, Package, IndianRupee, Image as ImageIcon, Tag, FileText, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 
@@ -151,15 +151,15 @@ export default function ManageMedicines() {
 
                             {/* Price */}
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Unit Price ($)</label>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Unit Price (Rs)</label>
                                 <div className="relative group">
-                                    <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-indigo-500 transition-colors" />
+                                    <p className="absolute left-4 top-5.5 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-indigo-500 transition-colors">Rs.</p>
                                     <input
                                         type="number"
                                         step="0.01"
                                         {...register("price")}
                                         className="w-full bg-slate-950 border border-slate-800 rounded-2xl py-4 pl-12 pr-4 text-sm text-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all placeholder:text-slate-700"
-                                        placeholder="12.99"
+                                        placeholder="50.00"
                                     />
                                     {errors.price && <p className="text-pink-500 text-[10px] font-bold mt-1.5 ml-1">{errors.price.message}</p>}
                                 </div>
@@ -325,15 +325,15 @@ export default function ManageMedicines() {
                                             {medicine.category}
                                         </div>
                                     </div>
-                                    
+
                                     <div className="p-6 flex-1 flex flex-col">
                                         <h3 className="text-white font-black text-lg mb-1 truncate" title={medicine.name}>{medicine.name}</h3>
                                         <p className="text-slate-500 text-xs line-clamp-2 mb-4 leading-relaxed font-medium min-h-[32px]">{medicine.description}</p>
-                                        
+
                                         <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-800/50">
                                             <div>
                                                 <p className="text-[10px] uppercase tracking-widest text-slate-500 font-black mb-1">Price</p>
-                                                <p className="text-indigo-400 font-bold">${parseFloat(medicine.price).toFixed(2)}</p>
+                                                <p className="text-indigo-400 font-bold">Rs {parseFloat(medicine.price).toFixed(2)}</p>
                                             </div>
                                             <div className="text-right">
                                                 <p className="text-[10px] uppercase tracking-widest text-slate-500 font-black mb-1">Stock</p>
@@ -341,7 +341,7 @@ export default function ManageMedicines() {
                                             </div>
                                         </div>
                                     </div>
-                                    
+
                                     <div className="p-3 border-t border-slate-800 bg-slate-900/50">
                                         <button
                                             onClick={() => deleteMedicine(medicine._id)}

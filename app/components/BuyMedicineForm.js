@@ -27,14 +27,16 @@ export default function BuyMedicineForm({ medicine, openModal, closeModal, refet
                 email: user?.email // Ensure email is passed
             });
 
+            if (res.error) {
+                toast.error(res.error);
+                return;
+            }
 
             if (res.url) {
                 window.location.href = res.url;
+                closeModal();
             }
-
-            toast.success(`Successfully purchased ${quantity} units of ${medicine.name}`);
             if (refetch) refetch();
-            closeModal();
         } catch (error) {
             console.error("Purchase Error:", error);
             toast.error(error.response?.data?.error || "Transaction failed");
@@ -88,7 +90,7 @@ export default function BuyMedicineForm({ medicine, openModal, closeModal, refet
                         </div>
                         <div>
                             <h3 className="text-lg font-black text-white">{medicine.name}</h3>
-                            <p className="text-slate-500 text-xs font-mono">${medicine.price} / unit</p>
+                            <p className="text-slate-500 text-xs font-mono">Rs. {medicine.price} / unit</p>
                             <p className="text-emerald-500 text-[10px] font-black uppercase tracking-widest mt-2">{medicine.quantity} In Stock</p>
                         </div>
                     </div>
@@ -131,7 +133,7 @@ export default function BuyMedicineForm({ medicine, openModal, closeModal, refet
                         </div>
                         <div className="flex justify-between items-center pt-4 border-t border-indigo-500/20">
                             <p className="text-indigo-400 text-[10px] font-black uppercase tracking-widest">Total Payable</p>
-                            <p className="text-3xl font-black text-white font-mono tracking-tighter">${totalPrice}</p>
+                            <p className="text-3xl font-black text-white font-mono tracking-tighter">Rs. {totalPrice}</p>
                         </div>
                     </div>
                 </div>

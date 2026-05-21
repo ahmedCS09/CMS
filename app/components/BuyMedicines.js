@@ -118,7 +118,7 @@ export default function BuyMedicines() {
                                 <div className="p-8">
                                     <div className="flex justify-between items-start mb-4">
                                         <h3 className="text-xl font-black text-white leading-tight group-hover:text-indigo-400 transition-colors">{medicine.name}</h3>
-                                        <p className="text-2xl font-black text-white font-mono tracking-tighter">${medicine.price}</p>
+                                        <p className="text-2xl font-black text-white font-mono tracking-tighter">Rs. {medicine.price}</p>
                                     </div>
                                     
                                     <p className="text-slate-500 text-xs leading-relaxed mb-8 line-clamp-2 h-8">{medicine.description}</p>

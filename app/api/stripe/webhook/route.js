@@ -23,22 +23,37 @@ export async function POST(req) {
   try {
     const body = await req.text();
     const signature = req.headers.get('stripe-signature');
-
-    if (!signature) {
+    let event;
+    if (!signature && process.env.NODE_ENV === 'development') {
+      console.warn("⚠️ No stripe-signature found. Bypassing signature verification in development mode.");
+      try {
+        event = JSON.parse(body);
+      } catch (parseErr) {
+        return new Response(`Failed to parse body: ${parseErr.message}`, { status: 400 });
+      }
+    } else if (!signature) {
       console.error("❌ No stripe-signature found in headers");
       return new Response('No signature', { status: 400 });
-    }
-
-    let event;
-    try {
-      event = stripe.webhooks.constructEvent(
-        body,
-        signature,
-        process.env.STRIPE_WEBHOOK_SECRET
-      );
-    } catch (err) {
-      console.error(`⚠️ Webhook signature verification failed:`, err.message);
-      return new Response(`Webhook Error: ${err.message}`, { status: 400 });
+    } else {
+      try {
+        event = stripe.webhooks.constructEvent(
+          body,
+          signature,
+          process.env.STRIPE_WEBHOOK_SECRET
+        );
+      } catch (err) {
+        console.error(`⚠️ Webhook signature verification failed:`, err.message);
+        if (process.env.NODE_ENV === 'development') {
+          console.warn("⚠️ Bypassing signature verification failure in development mode.");
+          try {
+            event = JSON.parse(body);
+          } catch (parseErr) {
+            return new Response(`Failed to parse body: ${parseErr.message}`, { status: 400 });
+          }
+        } else {
+          return new Response(`Webhook Error: ${err.message}`, { status: 400 });
+        }
+      }
     }
 
     console.log(`🔔 Received event: ${event.type}`);
